@@ -8,7 +8,7 @@ app.use(express.json());
 
 app.use('/v1/messages', messageRoutes);
 
-// async health route
+
 app.get('/health', async (req, res) => {
   res.status(200).json({
     success: true,

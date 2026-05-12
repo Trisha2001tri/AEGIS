@@ -29,7 +29,7 @@ const worker = new Worker(
     console.log('🔥 Processing:', message);
 
     // ==================================================
-    // STEP 1: Update status to PROCESSING
+    //  Update status to PROCESSING
     // ==================================================
 
     await Message.findByIdAndUpdate(message_id, {
@@ -37,7 +37,7 @@ const worker = new Worker(
     });
 
     // ==================================================
-    // STEP 2: Fetch previous history
+    //  Fetch previous history
     // ==================================================
 
     const history = await Message.find({
@@ -49,7 +49,7 @@ const worker = new Worker(
 
     try {
       // ==================================================
-      // STEP 3: HARD RISK DETECTION
+      // HARD RISK DETECTION
       // ==================================================
 
       const hardRiskDetected = detectHardRisk(message);
@@ -74,7 +74,7 @@ const worker = new Worker(
         });
 
         // ==================================================
-        // STEP 4: TRIGGER SOS QUEUE
+        // TRIGGER SOS QUEUE
         // ==================================================
 
         await sosQueue.add('trigger-sos', {
@@ -94,13 +94,13 @@ const worker = new Worker(
       }
 
       // ==================================================
-      // STEP 5: BUILD AI PROMPT
+      //BUILD AI PROMPT
       // ==================================================
 
       const prompt = buildAIPrompt(message, history);
 
       // ==================================================
-      // STEP 6: AI REQUEST
+      // AI REQUEST
       // ==================================================
 
       const response = await ai.models.generateContent({
@@ -126,13 +126,13 @@ const worker = new Worker(
       console.log('🧠 RAW AI RESPONSE:\n', rawText);
 
       // ==================================================
-      // STEP 7: PARSE AI RESPONSE
+      // PARSE AI RESPONSE
       // ==================================================
 
       const parsedResponse = parseAIResponse(rawText);
 
       // ==================================================
-      // STEP 8: VALIDATE AI RESPONSE
+      // VALIDATE AI RESPONSE
       // ==================================================
 
       const isValid = validateAIResponse(parsedResponse);
@@ -144,7 +144,7 @@ const worker = new Worker(
       console.log('✅ Parsed AI Response:', parsedResponse);
 
       // ==================================================
-      // STEP 9: SAVE RESULT
+      //  SAVE RESULT
       // ==================================================
 
       await Message.findByIdAndUpdate(message_id, {
@@ -165,7 +165,7 @@ const worker = new Worker(
       console.log('✅ Message processed successfully');
 
       // ==================================================
-      // STEP 10: AI BASED SOS TRIGGER
+      //  AI BASED SOS TRIGGER
       // ==================================================
 
       if (
@@ -189,7 +189,7 @@ const worker = new Worker(
       console.error('❌ AI FAILED:', error.message);
 
       // ==================================================
-      // STEP 11: FALLBACK ENGINE
+      // FALLBACK ENGINE
       // ==================================================
 
       const fallback = fallbackRiskEngine(message, history);
@@ -197,7 +197,7 @@ const worker = new Worker(
       console.log('🛟 FALLBACK ACTIVATED:', fallback);
 
       // ==================================================
-      // STEP 12: SAVE FALLBACK RESULT
+      // SAVE FALLBACK RESULT
       // ==================================================
 
       await Message.findByIdAndUpdate(message_id, {
@@ -216,7 +216,7 @@ const worker = new Worker(
       });
 
       // ==================================================
-      // STEP 13: FALLBACK SOS TRIGGER
+      // FALLBACK SOS TRIGGER
       // ==================================================
 
       if (
