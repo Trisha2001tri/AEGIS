@@ -11,7 +11,7 @@ import {
   buildAIPrompt,
   parseAIResponse,
   validateAIResponse,
-  fallbackRiskEngine,
+ fallbackRiskEngine,
 } from '../services/decision.service.js';
 
 console.log('🚀 Message Worker Started');
@@ -24,12 +24,13 @@ const worker = new Worker(
   'message-queue',
 
   async (job) => {
+
     const { message_id, message, user_id } = job.data;
 
     console.log('🔥 Processing:', message);
 
     // ==================================================
-    //  Update status to PROCESSING
+    // UPDATE STATUS
     // ==================================================
 
     await Message.findByIdAndUpdate(message_id, {
@@ -37,17 +38,20 @@ const worker = new Worker(
     });
 
     // ==================================================
-    //  Fetch previous history
+    // FETCH HISTORY
     // ==================================================
 
     const history = await Message.find({
-      user_id,
+      user_id: user_id,
       _id: { $ne: message_id },
     })
       .sort({ createdAt: -1 })
       .limit(5);
 
+    console.log('📜 Message history fetched:', history.length, 'messages');
+
     try {
+
       // ==================================================
       // HARD RISK DETECTION
       // ==================================================
@@ -55,10 +59,11 @@ const worker = new Worker(
       const hardRiskDetected = detectHardRisk(message);
 
       if (hardRiskDetected) {
+
         console.log('🚨 HARD RISK DETECTED');
 
-        // Save directly
         await Message.findByIdAndUpdate(message_id, {
+
           status: 'PROCESSED',
 
           sentiment: 'negative',
@@ -71,10 +76,12 @@ const worker = new Worker(
           decision_reason: 'Critical phrase detected',
 
           result: 'negative',
+
+          system_note: 'Hard risk keyword detected instantly.',
         });
 
         // ==================================================
-        // TRIGGER SOS QUEUE
+        // SOS QUEUE
         // ==================================================
 
         await sosQueue.add('trigger-sos', {
@@ -94,7 +101,7 @@ const worker = new Worker(
       }
 
       // ==================================================
-      //BUILD AI PROMPT
+      // BUILD PROMPT
       // ==================================================
 
       const prompt = buildAIPrompt(message, history);
@@ -144,10 +151,11 @@ const worker = new Worker(
       console.log('✅ Parsed AI Response:', parsedResponse);
 
       // ==================================================
-      //  SAVE RESULT
+      // SAVE RESULT
       // ==================================================
 
       await Message.findByIdAndUpdate(message_id, {
+
         status: 'PROCESSED',
 
         sentiment: parsedResponse.sentiment,
@@ -160,18 +168,25 @@ const worker = new Worker(
         decision_reason: parsedResponse.decision_reason,
 
         result: parsedResponse.sentiment,
+
+        retry_count: 0,
+
+        system_note: 'AI processed successfully.',
+
+        last_error: null,
       });
 
       console.log('✅ Message processed successfully');
 
       // ==================================================
-      //  AI BASED SOS TRIGGER
+      // AI BASED SOS TRIGGER
       // ==================================================
 
       if (
         parsedResponse.risk === 'HIGH' ||
         parsedResponse.action === 'ESCALATE'
       ) {
+
         await sosQueue.add('trigger-sos', {
           user_id,
           tracking_id: message_id,
@@ -185,23 +200,56 @@ const worker = new Worker(
 
         console.log('🚨 SOS QUEUE TRIGGERED');
       }
+
     } catch (error) {
+
       console.error('❌ AI FAILED:', error.message);
 
       // ==================================================
-      // FALLBACK ENGINE
+      // RETRY LOGIC
       // ==================================================
 
+      console.log(`❌ Attempt ${job.attemptsMade + 1} failed`);
+
+      if (job.attemptsMade < job.opts.attempts - 1) {
+
+        await Message.findByIdAndUpdate(message_id, {
+
+          status: 'RETRYING',
+
+          retry_count: job.attemptsMade + 1,
+
+          system_note: `AI request failed. Retry ${
+            job.attemptsMade + 1
+          } scheduled.`,
+
+          last_error: error.message,
+        });
+
+        console.log(
+          `🔁 Retrying message (${job.attemptsMade + 1}/${job.opts.attempts})`
+        );
+
+        throw error;
+      }
+
+      // ==================================================
+      // FINAL FAILURE → FALLBACK ENGINE
+      // ==================================================
+     
+      console.log('🛟 FALLBACK ACTIVATED');
+      
       const fallback = fallbackRiskEngine(message, history);
 
-      console.log('🛟 FALLBACK ACTIVATED:', fallback);
+      console.log('🛟 FALLBACK RESULT:', fallback);
 
       // ==================================================
       // SAVE FALLBACK RESULT
       // ==================================================
 
       await Message.findByIdAndUpdate(message_id, {
-        status: 'PROCESSED',
+
+        status: 'AI_FAILED_FALLBACK_USED',
 
         sentiment: fallback.sentiment,
         confidence: fallback.confidence,
@@ -213,6 +261,13 @@ const worker = new Worker(
         decision_reason: fallback.decision_reason,
 
         result: fallback.sentiment,
+
+        retry_count: job.attemptsMade + 1,
+
+        system_note:
+          'Primary AI failed after multiple retries. Fallback engine activated.',
+
+        last_error: error.message,
       });
 
       // ==================================================
@@ -223,6 +278,7 @@ const worker = new Worker(
         fallback.risk === 'HIGH' ||
         fallback.action === 'ESCALATE'
       ) {
+
         await sosQueue.add('trigger-sos', {
           user_id,
           tracking_id: message_id,

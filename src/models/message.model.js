@@ -2,6 +2,11 @@ import mongoose from 'mongoose';
 
 const messageSchema = new mongoose.Schema(
   {
+    nickname: {
+      type: String,
+      default: 'anonymous_user',
+    },
+
     user_id: {
       type: String,
       required: true,
@@ -14,14 +19,14 @@ const messageSchema = new mongoose.Schema(
       trim: true,
     },
 
-    //  AI output (raw understanding)
+    // AI output
     sentiment: {
       type: String,
       enum: ['positive', 'negative', 'neutral'],
       default: null,
     },
 
-    //  Risk layer (derived from sentiment + history)
+    // Risk layer
     risk: {
       type: String,
       enum: ['LOW', 'MEDIUM', 'HIGH'],
@@ -34,36 +39,61 @@ const messageSchema = new mongoose.Schema(
       default: null,
     },
 
-    //  Decision engine output
+    // Decision engine
     action: {
       type: String,
       enum: ['NONE', 'JOURNAL', 'GROUNDING', 'ESCALATE', 'CLARIFY'],
       default: 'NONE',
     },
 
-    //  Debug / explainability
+    // Explainability
     decision_reason: {
       type: String,
       default: null,
     },
 
-    //  Track progression (history-based intelligence)
+    // Historical progression
     risk_trend: {
       type: String,
       enum: ['STABLE', 'INCREASING', 'DECREASING'],
       default: 'STABLE',
     },
 
-    //  Async lifecycle
+    // Queue lifecycle
     status: {
       type: String,
-      enum: ['PENDING', 'PROCESSING', 'PROCESSED', 'FAILED'],
+      enum: [
+        'PENDING',
+        'PROCESSING',
+        'RETRYING',
+        'PROCESSED',
+        'FAILED',
+        'AI_FAILED_FALLBACK_USED',
+      ],
       default: 'PENDING',
       index: true,
     },
 
+    // Retry metadata
+    retry_count: {
+      type: Number,
+      default: 0,
+    },
+
+    // Operational monitoring
+    system_note: {
+      type: String,
+      default: null,
+    },
+
+    last_error: {
+      type: String,
+      default: null,
+    },
+
+    // Backward compatibility
     result: {
-      type: String, // keeping for backward compatibility
+      type: String,
       default: null,
     },
 

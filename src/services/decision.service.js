@@ -108,6 +108,7 @@ export const validateAIResponse = (response) => {
 };
 
 export const fallbackRiskEngine = (message, history = []) => {
+  
   const lowerMsg = message.toLowerCase();
 
   // =========================

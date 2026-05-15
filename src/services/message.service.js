@@ -5,25 +5,39 @@ import messageQueue from '../jobs/message.queue.js';
 
 export const createMessage = async (data) => {
   try {
-    const { user_id, message } = data;
+    const { user_id, nickname, message } = data;
 
-    if (!user_id || !message) {
-      throw new ApiError(400, "user_id and message are required");
+    if (!message) {
+      throw new ApiError(400, "message is required");
     }
 
     const tracking_id = uuidv4();
 
     const newMessage = await Message.create({
+      nickname: nickname || 'anonymous_user',
       user_id,
       message,
       tracking_id,
       status: 'PENDING',
     });
 
-    await messageQueue.add('process-message', {
+    await messageQueue.add(
+    'process-message',
+    {
       message_id: newMessage._id.toString(),
+      user_id,
       message,
-    });
+    },
+    {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 2000,
+      },
+      removeOnComplete: true,
+      removeOnFail: false,
+    }
+  );
     
     return {
       tracking_id,
@@ -47,6 +61,7 @@ export const getMessageStatus = async (message_id) => {
 
   return {
     tracking_id: message.tracking_id,
+    nickname: message.nickname,
     status: message.status,
 
     message: message.message,
